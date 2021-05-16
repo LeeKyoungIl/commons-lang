@@ -19,9 +19,11 @@ package org.apache.commons.lang3;
 import java.io.IOException;
 import java.io.Serializable;
 import java.lang.reflect.Array;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -261,14 +263,14 @@ public class ObjectUtils {
                     result = clone.invoke(obj);
                 } catch (final NoSuchMethodException e) {
                     throw new CloneFailedException("Cloneable type "
-                        + obj.getClass().getName()
-                        + " has no clone method", e);
+                            + obj.getClass().getName()
+                            + " has no clone method", e);
                 } catch (final IllegalAccessException e) {
                     throw new CloneFailedException("Cannot clone Cloneable type "
-                        + obj.getClass().getName(), e);
+                            + obj.getClass().getName(), e);
                 } catch (final InvocationTargetException e) {
                     throw new CloneFailedException("Exception cloning Cloneable type "
-                        + obj.getClass().getName(), e.getCause());
+                            + obj.getClass().getName(), e.getCause());
                 }
             }
             @SuppressWarnings("unchecked") // OK because input is of type T
@@ -640,6 +642,94 @@ public class ObjectUtils {
     }
 
     /**
+     * <p>Compare two objects for equality. Even if the object to be compared is null,
+     * it safely returns false and compares nulls.</p>
+     *
+     * <pre>
+     * class Baz {
+     *     String testBazString = "test";
+     * }
+     *
+     * class Bar {
+     *     String testBarString = "test";
+     *     Baz baz = new Baz();
+     *     Baz nullBaz;
+     * }
+     *
+     * class Foo {
+     *     Bar bar = new Bar();
+     *     Bar nullBar;
+     *     int primitiveInt = 1;
+     *     String testFooString = "test";
+     *
+     *     public static final String PUBLIC_STATIC_FINAL_FOO = "foo";
+     *     public static String PUBLIC_STATIC_NULL_FOO;
+     * }
+     *
+     * Foo foo = new Foo();
+     *
+     * ObjectUtils.nullSafeEquals(foo, "nullBar", null)                          = true
+     * ObjectUtils.nullSafeEquals(foo, "nullBar.testBarString", "test")          = false
+     * ObjectUtils.nullSafeEquals(foo, "bar.testBarString", "test")              = true
+     * ObjectUtils.nullSafeEquals(foo, "bar.nullBaz.testBazString", "test")      = false
+     * ObjectUtils.nullSafeEquals(foo, "primitiveInt", 1)                        = true
+     * ObjectUtils.nullSafeEquals(foo, "primitiveInt", 2)                        = false
+     * ObjectUtils.nullSafeEquals(foo, "PUBLIC_STATIC_FINAL_FOO", "foo")         = true
+     * ObjectUtils.nullSafeEquals(foo, "PUBLIC_STATIC_NULL_FOO", "foo")          = false
+     * </pre>
+     *
+     * @param source the first object.
+     * @param targetPath object target path to be checked.
+     * @param value value to compare.
+     * @return {@code true} if the objects are same, {@code false} otherwise
+     * @throws IllegalAccessException, IllegalArgumentException if an Access or Argument error occurs.
+     */
+    public static boolean nullSafeEquals(final Object source, String targetPath, Object value) throws IllegalAccessException, IllegalArgumentException {
+        if (source == null || StringUtils.isBlank(targetPath)) {
+            return false;
+        }
+        String[] targetValues = targetPath.split("\\.");
+        if (targetValues.length == 0) {
+            return false;
+        }
+        if (source.getClass().getSimpleName().equals(targetValues[0]) && targetPath.contains(".")) {
+            targetValues = Arrays.copyOfRange(targetValues, 1, targetValues.length);
+        }
+        final Field[] fields = source.getClass().getDeclaredFields();
+        if (targetValues.length == 1) {
+            for (Field field : fields) {
+                if (!field.getName().equalsIgnoreCase(targetValues[0])) {
+                    continue;
+                }
+
+                field.setAccessible(true);
+                final Object compareValue = field.get(source);
+                if (value == null) {
+                    return compareValue == null;
+                } else {
+                    return value.equals(compareValue);
+                }
+            }
+        } else {
+            for (int i=0; i<fields.length; i++) {
+                final Field field = fields[i];
+                if (!field.getName().equalsIgnoreCase(targetValues[0])) {
+                    continue;
+                }
+
+                field.setAccessible(true);
+                final Object nextSource = field.get(source);
+                if (nextSource == null) {
+                    return false;
+                } else if (targetValues.length >= (i+1)) {
+                    return nullSafeEquals(nextSource, targetPath.substring(targetValues[0].length()+1), value);
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
      * <p>Returns the first value in the array which is not {@code null}.
      * If all the values are {@code null} or the array is {@code null}
      * or empty then {@code null} is returned.</p>
@@ -815,8 +905,8 @@ public class ObjectUtils {
     public static void identityToString(final Appendable appendable, final Object object) throws IOException {
         Validate.notNull(object, "object");
         appendable.append(object.getClass().getName())
-              .append(AT_SIGN)
-              .append(Integer.toHexString(System.identityHashCode(object)));
+                .append(AT_SIGN)
+                .append(Integer.toHexString(System.identityHashCode(object)));
     }
 
     // Identity ToString
@@ -846,8 +936,8 @@ public class ObjectUtils {
         final StringBuilder builder = new StringBuilder(name.length() + 1 + hexString.length());
         // @formatter:off
         builder.append(name)
-              .append(AT_SIGN)
-              .append(hexString);
+                .append(AT_SIGN)
+                .append(hexString);
         // @formatter:on
         return builder.toString();
     }
@@ -876,8 +966,8 @@ public class ObjectUtils {
         final String hexString = Integer.toHexString(System.identityHashCode(object));
         builder.ensureCapacity(builder.length() +  name.length() + 1 + hexString.length());
         builder.append(name)
-              .append(AT_SIGN)
-              .append(hexString);
+                .append(AT_SIGN)
+                .append(hexString);
     }
 
     /**
@@ -901,8 +991,8 @@ public class ObjectUtils {
         final String hexString = Integer.toHexString(System.identityHashCode(object));
         buffer.ensureCapacity(buffer.length() + name.length() + 1 + hexString.length());
         buffer.append(name)
-              .append(AT_SIGN)
-              .append(hexString);
+                .append(AT_SIGN)
+                .append(hexString);
     }
 
     /**
@@ -926,8 +1016,8 @@ public class ObjectUtils {
         final String hexString = Integer.toHexString(System.identityHashCode(object));
         builder.ensureCapacity(builder.length() +  name.length() + 1 + hexString.length());
         builder.append(name)
-              .append(AT_SIGN)
-              .append(hexString);
+                .append(AT_SIGN)
+                .append(hexString);
     }
 
 
