@@ -685,7 +685,7 @@ public class ObjectUtils {
      * @throws IllegalAccessException, IllegalArgumentException if an Access or Argument error occurs.
      */
     public static boolean nullSafeEquals(final Object source, String targetPath, Object value) throws IllegalAccessException, IllegalArgumentException {
-        if (source == null || targetPath == null) {
+        if (source == null || StringUtils.isBlank(targetPath)) {
             return false;
         }
         String[] targetValues = targetPath.split("\\.");
@@ -698,32 +698,31 @@ public class ObjectUtils {
         final Field[] fields = source.getClass().getDeclaredFields();
         if (targetValues.length == 1) {
             for (Field field : fields) {
-                if (field.getName().equalsIgnoreCase(targetValues[0])) {
-                    if (field.getModifiers() != 1) {
-                        field.setAccessible(true);
-                    }
-                    final Object compareValue = field.get(source);
-                    if (compareValue == null && value == null) {
-                        return true;
-                    } else {
-                        return (compareValue != null) ? compareValue.equals(value) : value.equals(compareValue);
-                    }
+                if (!field.getName().equalsIgnoreCase(targetValues[0])) {
+                    continue;
+                }
+
+                field.setAccessible(true);
+                final Object compareValue = field.get(source);
+                if (value == null) {
+                    return compareValue == null;
+                } else {
+                    return value.equals(compareValue);
                 }
             }
         } else {
             for (int i=0; i<fields.length; i++) {
                 final Field field = fields[i];
-                if (field.getName().equalsIgnoreCase(targetValues[0])) {
-                    if (field.getModifiers() != 1) {
-                        field.setAccessible(true);
-                    }
+                if (!field.getName().equalsIgnoreCase(targetValues[0])) {
+                    continue;
+                }
 
-                    final Object nextSource = field.get(source);
-                    if (nextSource == null) {
-                        return false;
-                    } else if (targetValues.length >= (i+1)) {
-                        return nullSafeEquals(nextSource, targetPath.substring(targetValues[0].length()+1), value);
-                    }
+                field.setAccessible(true);
+                final Object nextSource = field.get(source);
+                if (nextSource == null) {
+                    return false;
+                } else if (targetValues.length >= (i+1)) {
+                    return nullSafeEquals(nextSource, targetPath.substring(targetValues[0].length()+1), value);
                 }
             }
         }
